@@ -1,4 +1,3 @@
-# services/aluno_service.py
 from models import db, Aluno, Turma
 from sqlalchemy.exc import IntegrityError
 
