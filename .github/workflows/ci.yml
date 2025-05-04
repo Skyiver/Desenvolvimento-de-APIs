@@ -1,0 +1,54 @@
+name: CI - Testes
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgres:15
+        env:
+          POSTGRES_USER: usuario
+          POSTGRES_PASSWORD: senha
+          POSTGRES_DB: escola
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Start Flask API
+        env:
+          FLASK_APP: app.py
+          FLASK_ENV: development
+          DATABASE_URL: postgresql://usuario:senha@localhost:5432/escola
+        run: |
+          flask run --host=0.0.0.0 --port=5002 &
+          for i in {1..15}; do
+            curl --fail http://localhost:5002/api/alunos && break
+            sleep 1
+          done
+
+      - name: Run tests
+        env:
+          BASE_URL: http://localhost:5002/api
+          JWT_SECRET_KEY: qualquer_valor
+        run: pytest tests/ -v
