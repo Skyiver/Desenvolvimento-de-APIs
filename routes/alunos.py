@@ -1,78 +1,66 @@
 from flask import Blueprint, jsonify, request
-from models.aluno import Aluno
+from services.aluno_service import AlunoService
+from models import db, Aluno
 
 alunos_bp = Blueprint('alunos', __name__)
-alunos_db = {}
 
 @alunos_bp.route('/alunos', methods=['GET'])
 def listar_alunos():
     try:
-        return jsonify([aluno.to_dict() for aluno in alunos_db.values()]), 200
+        alunos = Aluno.query.all()
+        return jsonify([a.to_dict() for a in alunos]), 200
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
 @alunos_bp.route('/alunos', methods=['POST'])
 def criar_aluno():
     try:
-        data = request.get_json()
-        
-        if not data.get('nome'):
-            return jsonify({"erro": "aluno sem nome"}), 400
-            
-        if 'id' in data and data['id'] in alunos_db:
-            return jsonify({"erro": "id ja utilizada"}), 400
-            
-        aluno = Aluno(
-            nome=data['nome'],
-            idade=data.get('idade'),
-            turma_id=data.get('turma_id'),
-            data_nascimento=data.get('data_nascimento'),
-            nota_primeiro_semestre=data.get('nota_primeiro_semestre'),
-            nota_segundo_semestre=data.get('nota_segundo_semestre'),
-            media_final=data.get('media_final'),
-            id=data.get('id')
-        )
-        
-        alunos_db[aluno.id] = aluno
+        data = request.get_json() or {}
+        aluno = AlunoService.criar_aluno(data)  
         return jsonify(aluno.to_dict()), 200
-        
+    except ValueError as e:
+        return jsonify({"erro": str(e)}), 400
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
 @alunos_bp.route('/alunos/<int:id>', methods=['GET'])
 def buscar_aluno(id):
     try:
-        aluno = alunos_db.get(id)
+        aluno = Aluno.query.get(id)
         if not aluno:
-            return jsonify({"erro": "aluno nao encontrado"}), 404
+            raise ValueError("aluno nao encontrado")
         return jsonify(aluno.to_dict()), 200
+    except ValueError as e:
+        return jsonify({"erro": str(e)}), 404
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
 @alunos_bp.route('/alunos/<int:id>', methods=['PUT'])
 def atualizar_aluno(id):
     try:
-        aluno = alunos_db.get(id)
+        aluno = Aluno.query.get(id)
         if not aluno:
-            return jsonify({"erro": "aluno nao encontrado"}), 404
-            
-        data = request.get_json()
+            raise ValueError("aluno nao encontrado")
+
+        data = request.get_json() or {}
         if 'nome' not in data:
-            return jsonify({"erro": "aluno sem nome"}), 400
-            
+            return jsonify({"erro": "aluno sem nome"}), 400  
+
         aluno.nome = data['nome']
+        db.session.commit()
         return jsonify(aluno.to_dict()), 200
-        
+    except ValueError as e:
+        return jsonify({"erro": str(e)}), 404
     except Exception as e:
+        db.session.rollback()
         return jsonify({"erro": str(e)}), 500
 
 @alunos_bp.route('/alunos/<int:id>', methods=['DELETE'])
 def deletar_aluno(id):
     try:
-        if id not in alunos_db:
-            return jsonify({"erro": "aluno nao encontrado"}), 404
-            
-        del alunos_db[id]
+        AlunoService.deletar_aluno(id)  
         return '', 204
+    except ValueError as e:
+        return jsonify({"erro": str(e)}), 404
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
